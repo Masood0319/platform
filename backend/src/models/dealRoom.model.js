@@ -20,12 +20,20 @@ const dealRoomSchema = new mongoose.Schema({
   }],
   status: {
     type: String,
-    enum: ['active', 'due_diligence', 'negotiation', 'closed', 'archived'],
-    default: 'active',
+    enum: ['interested', 'nda_signed', 'due_diligence', 'closed', 'declined'],
+    default: 'interested',
   },
   amount: {
     type: Number,
     default: 0,
+  },
+  closeProposal: {
+    amount: Number,
+    proposedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+    },
+    proposedAt: Date,
   },
   feeAmount: {
     type: Number,
@@ -58,6 +66,14 @@ const dealRoomSchema = new mongoose.Schema({
       type: String,
       enum: ['nda', 'term_sheet', 'due_diligence', 'other'],
     },
+    signed: {
+      type: Boolean,
+      default: false,
+    },
+    signedAt: {
+      type: Date,
+      default: null,
+    },
     uploadedBy: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'User',
@@ -67,6 +83,29 @@ const dealRoomSchema = new mongoose.Schema({
       default: Date.now,
     },
   }],
+  // Shared due diligence checklist - both participants can check items off.
+  dueDiligenceChecklist: {
+    financials: {
+      completed: { type: Boolean, default: false },
+      completedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
+      completedAt: { type: Date, default: null },
+    },
+    capTable: {
+      completed: { type: Boolean, default: false },
+      completedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
+      completedAt: { type: Date, default: null },
+    },
+    legalDocuments: {
+      completed: { type: Boolean, default: false },
+      completedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
+      completedAt: { type: Date, default: null },
+    },
+    teamBackgrounds: {
+      completed: { type: Boolean, default: false },
+      completedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
+      completedAt: { type: Date, default: null },
+    },
+  },
   // Activity log
   activityLog: [{
     action: String,

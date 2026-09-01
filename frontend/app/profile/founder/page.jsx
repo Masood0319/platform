@@ -1380,11 +1380,9 @@ export default function ProfilePage() {
 
   const renderSettings = () => {
     const items = [
-      { key: 'privacy', label: 'Privacy Settings', desc: 'Control who can see your contact details and profile', icon: Icon.Eye, path: '/settings/privacy' },
-      { key: 'notifications', label: 'Notification Preferences', desc: 'Choose which updates you get and how', icon: Icon.Bell, path: '/settings/notifications' },
-      { key: 'security', label: 'Account Security', desc: 'Manage sessions and login activity', icon: Icon.Shield, path: '/settings/security' },
-      { key: 'password', label: 'Change Password', desc: 'Update your account password', icon: Icon.Lock, path: '/settings/password' },
-      { key: '2fa', label: 'Two-Factor Authentication', desc: user?.twoFactorEnabled ? 'Enabled' : 'Add an extra layer of security', icon: Icon.Shield, path: '/settings/2fa', badge: user?.twoFactorEnabled ? 'On' : 'Off' },
+      { key: 'privacy', label: 'Privacy Settings', desc: 'Control who can see your contact details and profile', icon: Icon.Eye, path: '/settings?tab=privacy' },
+      { key: 'notifications', label: 'Notification Preferences', desc: 'Choose which updates you get and how', icon: Icon.Bell, path: '/settings?tab=notifications' },
+      { key: 'password', label: 'Change Password', desc: 'Update your account password', icon: Icon.Lock, path: '/settings?tab=password' },
     ];
 
     return (
@@ -1423,7 +1421,7 @@ export default function ProfilePage() {
               <p className="text-xs text-gray-500 mt-0.5">Permanently remove your account and all associated data. This cannot be undone.</p>
             </div>
             <button
-              onClick={() => router.push('/settings/delete-account')}
+              onClick={() => router.push('/settings?tab=danger')}
               className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-red-600 ring-1 ring-inset ring-red-200 rounded-lg hover:bg-red-50 transition-colors shrink-0"
             >
               <Icon.Trash className="w-3.5 h-3.5" />

@@ -195,8 +195,10 @@ export default function InvestorDashboard() {
             <FeaturedStartupsSkeleton />
           ) : visibleStartups.length > 0 ? (
             <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              {visibleStartups.map((startup) => (
-                <Link key={startup.id} href={`/startup/${startup.id}`}>
+              {visibleStartups.map((startup) => {
+                const startupId = startup.id || startup._id;
+                return (
+                  <Link key={startupId} href={`/startup/${startupId}`}>
                   <div className="h-full rounded-xl border border-[var(--border)] bg-[var(--surface)] p-4 transition hover:border-[var(--primary)]/40">
                     <div className="mb-2 flex items-start justify-between gap-2">
                       <h3 className="truncate font-semibold text-[var(--text-main)]">
@@ -217,8 +219,9 @@ export default function InvestorDashboard() {
                       <span className="flex-shrink-0">{startup.investorsInterested ?? 0} interested</span>
                     </div>
                   </div>
-                </Link>
-              ))}
+                  </Link>
+                );
+              })}
             </div>
           ) : (
             <div className="mt-6 rounded-xl border border-dashed border-[var(--border)] p-8 text-center text-sm text-[var(--text-muted)]">

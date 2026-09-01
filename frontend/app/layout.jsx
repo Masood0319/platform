@@ -32,13 +32,13 @@ export default function RootLayout({ children }) {
         <Suspense fallback={null}>
           <RouteProgress />
         </Suspense>
-        <SocketProvider>
-          <UserProvider>
+        <UserProvider>
+          <SocketProvider>
             <UnreadProvider>
               {children}
             </UnreadProvider>
-          </UserProvider>
-        </SocketProvider>
+          </SocketProvider>
+        </UserProvider>
         <ToastHost />
       </body>
     </html>

@@ -21,17 +21,19 @@ const PROFILE_BY_ROLE = {
   partner: "/profile/partner",
 };
 
-function getInitials(name = "") {
-  return (
-    name
-      .split(" ")
-      .filter(Boolean)
-      .slice(0, 2)
-      .map((part) => part[0])
-      .join("")
-      .toUpperCase() || "?"
-  );
-}
+const getInitials = (name) => {
+  if (!name || typeof name !== "string") {
+    return "U";
+  }
+
+  return name
+    .split(" ")
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0])
+    .join("")
+    .toUpperCase();
+};
 
 // Weighted completion check across fields that matter most for a usable
 // profile, independent of role — keeps the calculation honest rather than

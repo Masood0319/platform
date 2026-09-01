@@ -10,6 +10,7 @@ import {
   getDealRoomActivity,
   closeDeal,
   getDealRoomStats,
+  updateChecklistItem,
 } from "../controllers/dealRoom.controller.js";
 
 const router = Router();
@@ -49,6 +50,9 @@ router.patch("/:id/status", patchDealRoomStatus);
 
 // POST /api/deal-rooms/:id/close - Close deal (success fee triggered)
 router.post("/:id/close", closeDeal);
+
+// PATCH /api/deal-rooms/:id/checklist - Toggle a due diligence checklist item
+router.patch("/:id/checklist", updateChecklistItem);
 
 // ============================================
 // DOCUMENT MANAGEMENT (Both roles if participant)

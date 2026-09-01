@@ -3,9 +3,12 @@
 import { useState, useRef } from "react"
 import { useRouter } from "next/navigation"
 import { apiRequest } from "@/lib/apiClient"
+import { setToken } from "@/lib/tokenStorage"
+import { useUser } from "@/components/providers/UserProvider"
 
 export default function VerifyPage() {
   const router = useRouter()
+  const { refreshUser } = useUser()
   const [otp, setOtp] = useState(["", "", "", "", "", ""])
   const [email, setEmail] = useState(
     typeof window !== "undefined" ? localStorage.getItem("email") || "" : ""
@@ -53,9 +56,12 @@ export default function VerifyPage() {
         setLoading,
       })
 
-      
-    
-      localStorage.setItem("token", res.token)    
+      setToken(res.token)
+
+      // Sync UserProvider's context with the new token before navigating,
+      // otherwise useUser() would still report isAuthenticated: false
+      // on /setup despite a valid token being stored.
+      await refreshUser()
 
       router.push("/setup")
     } catch (err) {

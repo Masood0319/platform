@@ -4,6 +4,7 @@
 
 import React, { createContext, useState, useContext, useEffect, useCallback } from 'react';
 import { get } from '../../lib/apiClient';
+import { useUser } from './UserProvider';
 
 const UnreadContext = createContext();
 
@@ -19,7 +20,15 @@ export const UnreadProvider = ({ children }) => {
   const [unreadCount, setUnreadCount] = useState(0);
   const [loading, setLoading] = useState(false);
 
+  // Wait for real auth state instead of firing on every mount - this
+  // provider used to fire before the token was even written to storage
+  // (e.g. during the OAuth redirect), causing a spurious 401 that wiped
+  // out an otherwise valid, freshly-issued token.
+  const { isAuthenticated } = useUser();
+
   const fetchUnreadCount = useCallback(async () => {
+    if (!isAuthenticated) return;
+
     try {
       setLoading(true);
       const response = await get('/notifications/unread');
@@ -31,11 +40,15 @@ export const UnreadProvider = ({ children }) => {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [isAuthenticated]);
 
   useEffect(() => {
+    if (!isAuthenticated) {
+      setUnreadCount(0);
+      return;
+    }
     fetchUnreadCount();
-  }, [fetchUnreadCount]);
+  }, [isAuthenticated, fetchUnreadCount]);
 
   return (
     <UnreadContext.Provider value={{ unreadCount, loading, fetchUnreadCount }}>

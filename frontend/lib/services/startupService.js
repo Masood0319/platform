@@ -1,5 +1,6 @@
 // frontend/lib/services/startupService.js
 import { apiRequest } from '@/lib/apiClient';
+import { getToken } from '@/lib/tokenStorage';
 
 export async function getStartups() {
   try {
@@ -82,7 +83,7 @@ export async function setStartupPublishStatus(id, status) {
 // --- File uploads (real multipart, not blob URLs) -----------------------
 
 async function uploadStartupFile(path, file) {
-  const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+  const token = getToken();
   const form = new FormData();
   form.append('document', file);
 

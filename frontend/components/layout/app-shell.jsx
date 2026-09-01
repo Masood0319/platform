@@ -18,7 +18,8 @@ import {
   CornerDownLeft,
   Home,
   Handshake,
-  Briefcase
+  Briefcase,
+  Shield
 } from "lucide-react";
 
 import { NotificationItem } from "@/components/notification-item";
@@ -63,6 +64,12 @@ const PRIMARY_NAV = [
     label: "Deal Rooms",
     icon: Handshake,
     visible: (role) => role === "founder" || role === "investor",
+  },
+  {
+    href: "/admin",
+    label: "Admin",
+    icon: Shield,
+    visible: (role) => role === "admin",
   }
 ];
 
@@ -629,18 +636,15 @@ export function AppShell({ children, title, subtitle, actions }) {
                     <LayoutDashboard size={15} aria-hidden="true" />
                     Dashboard
                   </Link>
-                  {/* TODO: Enable /settings when the Settings page is implemented on the backend */}
-                  {false && (
-                    <Link
-                      href="/settings"
-                      onClick={profileDropdown.close}
-                      className="flex items-center gap-2 rounded-md px-3 py-2 text-sm text-[var(--text-muted)] hover:bg-[var(--surface)] hover:text-[var(--text-main)]"
-                      role="menuitem"
-                    >
-                      <Settings size={15} aria-hidden="true" />
-                      Settings
-                    </Link>
-                  )}
+                  <Link
+                    href="/settings"
+                    onClick={profileDropdown.close}
+                    className="flex items-center gap-2 rounded-md px-3 py-2 text-sm text-[var(--text-muted)] hover:bg-[var(--surface)] hover:text-[var(--text-main)]"
+                    role="menuitem"
+                  >
+                    <Settings size={15} aria-hidden="true" />
+                    Settings
+                  </Link>
                   <div className="my-1 border-t border-[var(--border)]" />
                   <LogoutButton variant="ghost" size="sm" fullWidth className="justify-start" />
                 </div>
@@ -718,23 +722,19 @@ export function AppShell({ children, title, subtitle, actions }) {
             active={isNavItemActive(pathname, profileHref)}
             onClick={() => setDrawerOpen(false)}
           />
-          {/* TODO: Enable /settings when the Settings page is implemented */}
-          {false && (
-            <MobileNavRow
-              href="/settings"
-              label="Settings"
-              icon={Settings}
-              active={isNavItemActive(pathname, "/settings")}
-              onClick={() => setDrawerOpen(false)}
-            />
-          )}
+          <MobileNavRow
+            href="/settings"
+            label="Settings"
+            icon={Settings}
+            active={isNavItemActive(pathname, "/settings")}
+            onClick={() => setDrawerOpen(false)}
+          />
 
           <div className="px-3 pt-3">
             <LogoutButton variant="outline" size="sm" fullWidth />
           </div>
         </MobileDrawer>
       </header>
-      </div>
 
       <CommandPalette
         open={paletteOpen}
@@ -762,6 +762,7 @@ export function AppShell({ children, title, subtitle, actions }) {
           </div>
           {children}
         </main>
+      </div>
       </div>
     </AuthGuard>
   );

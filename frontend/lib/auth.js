@@ -1,21 +1,27 @@
 import { apiRequest } from "@/lib/apiClient";
+import { clearToken } from "@/lib/tokenStorage";
 import { showToast } from "@/lib/toast";
+
+// ============================================================
+// CENTRALIZED LOGOUT
+// ------------------------------------------------------------
+// The single implementation of "log the user out". UserProvider's
+// context `logout()` delegates here (with redirect/toast disabled
+// so pages like the landing page can stay put), and anything that
+// wants the full experience (toast + redirect) can call this
+// directly, e.g. the logout button.
+// ============================================================
 
 export async function logoutUser({ redirect = true, toast = true, router, onLogout } = {}) {
   try {
-    await apiRequest("auth/logout", { method: "GET" });
+    // Backend route is POST /auth/logout - GET was silently 404ing.
+    await apiRequest("auth/logout", { method: "POST" });
   } catch (_) {
     // Even if the API fails, proceed with local logout to keep UX consistent.
   }
 
-  // Clear ALL auth data from all storage locations
-  try {
-    localStorage.removeItem("token");
-    localStorage.removeItem("user");
-    localStorage.removeItem("email");
-    sessionStorage.removeItem("token");
-    sessionStorage.removeItem("redirectAfterLogin");
-  } catch (_) {}
+  // Clear the token from the single source of truth
+  clearToken();
 
   // Dispatch global unauthorized event so all providers sync immediately
   if (typeof window !== 'undefined') {

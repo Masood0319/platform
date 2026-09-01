@@ -1,5 +1,7 @@
 // lib/apiClient.js
 
+import { getToken, clearToken } from "./tokenStorage";
+
 // ============================================
 // API CLIENT CONFIGURATION
 // ============================================
@@ -41,25 +43,25 @@ export const createApiError = (response, payload) => {
 
 // ============================================
 // HANDLE UNAUTHORIZED RESPONSE
+// ------------------------------------------------------------
+// IMPORTANT: only treat a 401 as "the session died" if a token was
+// actually attached to THIS request. A 401 from a request that never
+// had a token in the first place (e.g. a provider that fired before
+// auth state was ready) is completely normal and must NOT wipe out a
+// token that may have just been - or is about to be - set by another
+// in-flight request (this previously caused a real bug: a stray
+// unauthenticated request during the OAuth redirect would wipe a
+// freshly-issued, perfectly valid token milliseconds after login).
 // ============================================
 
-const handleUnauthorized = (status) => {
-  if (status === 401) {
-    // Clear token storage directly in case UserProvider hasn't caught it yet
+const handleUnauthorized = (status, hadToken) => {
+  if (status === 401 && hadToken) {
+    clearToken();
+
     if (typeof window !== 'undefined') {
-      try {
-        localStorage.removeItem('token');
-        sessionStorage.removeItem('token');
-      } catch (e) {
-        // ignore
-      }
-      
-      // Dispatch a custom event so the application (e.g. UserProvider or AuthGuard)
-      // can gracefully handle the unauthenticated state without a hard page reload or flash.
-      // This eliminates the redirect loop and landing page flash bugs.
       window.dispatchEvent(new CustomEvent('auth:unauthorized'));
     }
-    return true; // Indicates unauthorized was handled
+    return true;
   }
   return false;
 };
@@ -70,13 +72,10 @@ const handleUnauthorized = (status) => {
 
 export const apiRequest = async (route, options = {}) => {
   const url = toApiUrl(route);
-  
-  // Get token from localStorage
-  let token = null;
-  if (typeof window !== 'undefined') {
-    token = localStorage.getItem('token') || sessionStorage.getItem('token');
-  }
-  
+
+  // Get token from centralized storage
+  const token = getToken();
+
   // Default headers
   const headers = {
     'Content-Type': 'application/json',
@@ -87,6 +86,7 @@ export const apiRequest = async (route, options = {}) => {
   const method = (options.method || 'GET').toUpperCase();
   const init = {
     ...options,
+    method,
     headers,
   };
 
@@ -107,46 +107,38 @@ export const apiRequest = async (route, options = {}) => {
     delete init.body;
   }
 
+  let response;
+  let payload = null;
+
   try {
-    console.log(`📡 API Request: ${options.method || 'GET'} ${url}`);
-
-    const response = await fetch(url, init);
-    
-    // Parse response
-    let payload = null;
-    try {
-      payload = await response.json();
-    } catch (parseError) {
-      // If response is not JSON
-      console.warn('Response is not JSON:', response.status);
-    }
-
-    // Handle 401 Unauthorized
-    if (response.status === 401) {
-      console.warn('🔒 Unauthorized request, redirecting to login...');
-      handleUnauthorized(response.status);
-      throw createApiError(response, payload || { message: 'Session expired. Please login again.' });
-    }
-
-    // Handle other error statuses
-    if (!response.ok) {
-      const error = createApiError(response, payload);
-      throw error;
-    }
-
-    console.log(`✅ API Success: ${route}`);
-    return payload;
-  } catch (error) {
-    console.error(`❌ API Request Failed: ${route}`, error);
-    
-    // If it's a network error, don't redirect
-    if (error.message === 'Failed to fetch' || error.status === 0) {
-      console.error('🔴 Network error - Backend may be down');
-      // Don't redirect for network errors, just throw
-    }
-    
+    response = await fetch(url, init);
+  } catch (networkError) {
+    // The request never reached the server (offline, CORS rejection, backend down, etc.)
+    const error = new Error('Network error - please check your connection and try again.');
+    error.status = 0;
+    error.cause = networkError;
     throw error;
   }
+
+  try {
+    payload = await response.json();
+  } catch {
+    // Response had no JSON body - that's fine for some endpoints (e.g. 204s)
+    payload = null;
+  }
+
+  // Handle 401 Unauthorized
+  if (response.status === 401) {
+    handleUnauthorized(response.status, !!token);
+    throw createApiError(response, payload || { message: 'Session expired. Please login again.' });
+  }
+
+  // Handle other error statuses
+  if (!response.ok) {
+    throw createApiError(response, payload);
+  }
+
+  return payload;
 };
 
 // ============================================

@@ -37,7 +37,7 @@ export const getDashboardStats = async (req, res) => {
       Startup.countDocuments({ status: 'published' }),
       Interest.countDocuments(),
       Match.countDocuments(),
-      DealRoom.countDocuments({ status: { $in: ['active', 'due_diligence'] } }),
+      DealRoom.countDocuments({ status: { $in: ['interested', 'nda_signed', 'due_diligence'] } }),
       DealRoom.countDocuments({ status: 'closed' }),
       Verification.countDocuments({ status: 'pending' }),
       DealRoom.aggregate([
@@ -1138,7 +1138,7 @@ export const getDealAnalytics = async (req, res) => {
         trend: dealTrend,
         total: await DealRoom.countDocuments(),
         closed: await DealRoom.countDocuments({ status: 'closed' }),
-        active: await DealRoom.countDocuments({ status: { $in: ['active', 'due_diligence'] } }),
+        active: await DealRoom.countDocuments({ status: { $in: ['interested', 'nda_signed', 'due_diligence'] } }),
       },
     });
   } catch (error) {

@@ -120,11 +120,11 @@ export const patchDealRoomStatus = async (req, res) => {
     const { status } = req.body;
     const userId = req.user._id;
 
-    const validStatuses = ['active', 'due_diligence', 'negotiation', 'closed', 'archived'];
+    const validStatuses = ['interested', 'nda_signed', 'due_diligence', 'declined'];
     if (!validStatuses.includes(status)) {
       return res.status(400).json({
         success: false,
-        message: `Invalid status. Must be one of: ${validStatuses.join(', ')}`,
+        message: `Invalid status for this action. Must be one of: ${validStatuses.join(', ')}. To close a deal, use the dedicated close endpoint, which calculates the success fee and requires both parties to confirm.`,
       });
     }
 
@@ -194,9 +194,85 @@ export const patchDealRoomStatus = async (req, res) => {
 };
 
 // ============================================
-// GET DEAL ROOM DOCUMENTS
-// GET /api/deal-rooms/:id/documents
+// UPDATE DUE DILIGENCE CHECKLIST ITEM
+// PATCH /api/deal-rooms/:id/checklist
 // ============================================
+
+const CHECKLIST_ITEMS = ['financials', 'capTable', 'legalDocuments', 'teamBackgrounds'];
+
+export const updateChecklistItem = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { item, completed } = req.body;
+    const userId = req.user._id;
+
+    if (!CHECKLIST_ITEMS.includes(item)) {
+      return res.status(400).json({
+        success: false,
+        message: `Invalid checklist item. Must be one of: ${CHECKLIST_ITEMS.join(', ')}`,
+      });
+    }
+
+    if (typeof completed !== 'boolean') {
+      return res.status(400).json({
+        success: false,
+        message: '"completed" must be true or false',
+      });
+    }
+
+    const dealRoom = await DealRoom.findById(id);
+
+    if (!dealRoom) {
+      return res.status(404).json({
+        success: false,
+        message: 'Deal room not found',
+      });
+    }
+
+    const isParticipant = dealRoom.participants.some(
+      p => p.userId.toString() === userId.toString()
+    );
+
+    if (!isParticipant && req.user.role !== 'admin') {
+      return res.status(403).json({
+        success: false,
+        message: 'You do not have permission to update this deal room',
+      });
+    }
+
+    if (!dealRoom.dueDiligenceChecklist) {
+      dealRoom.dueDiligenceChecklist = {};
+    }
+
+    dealRoom.dueDiligenceChecklist[item] = {
+      completed,
+      completedBy: completed ? userId : null,
+      completedAt: completed ? new Date() : null,
+    };
+
+    const itemLabel = item.replace(/([A-Z])/g, ' $1').replace(/^./, (c) => c.toUpperCase());
+    dealRoom.activityLog.push({
+      action: completed ? 'Checklist Item Completed' : 'Checklist Item Reopened',
+      description: `${itemLabel} marked as ${completed ? 'complete' : 'incomplete'}`,
+      timestamp: new Date(),
+      userId,
+    });
+
+    await dealRoom.save();
+
+    res.status(200).json({
+      success: true,
+      message: 'Checklist updated',
+      data: dealRoom,
+    });
+  } catch (error) {
+    console.error('Update checklist error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to update checklist',
+    });
+  }
+};
 
 export const getDealRoomDocuments = async (req, res) => {
   try {
@@ -464,8 +540,15 @@ export const getDealRoomActivity = async (req, res) => {
 export const closeDeal = async (req, res) => {
   try {
     const { id } = req.params;
-    const { amount, feePercentage = 3 } = req.body;
+    const { amount } = req.body;
     const userId = req.user._id;
+
+    if (!amount || amount <= 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'A valid closing amount is required',
+      });
+    }
 
     const dealRoom = await DealRoom.findById(id)
       .populate({
@@ -503,22 +586,72 @@ export const closeDeal = async (req, res) => {
       });
     }
 
-    // Calculate fee
-    const finalAmount = amount || dealRoom.amount || 0;
-    const feeAmount = (finalAmount * feePercentage) / 100;
+    const existingProposal = dealRoom.closeProposal;
 
-    // Update deal room
+    // No proposal yet, or the same person is updating their own proposed amount:
+    // record/update the proposal and wait for the other participant to confirm.
+    if (!existingProposal || existingProposal.proposedBy.toString() === userId.toString()) {
+      dealRoom.closeProposal = {
+        amount,
+        proposedBy: userId,
+        proposedAt: new Date(),
+      };
+
+      dealRoom.activityLog.push({
+        action: 'Close Proposed',
+        description: `Proposed closing this deal at $${amount.toLocaleString()}. Awaiting confirmation from the other party.`,
+        timestamp: new Date(),
+        userId,
+      });
+
+      await dealRoom.save();
+
+      const otherParticipants = dealRoom.participants.filter(
+        p => p.userId.toString() !== userId.toString()
+      );
+      for (const participant of otherParticipants) {
+        await Notification.create({
+          userId: participant.userId,
+          type: 'deal_close_proposed',
+          title: 'Deal close proposed',
+          message: `The other party proposed closing this deal at $${amount.toLocaleString()}. Confirm to finalize.`,
+          data: { dealRoomId: dealRoom._id },
+        });
+      }
+
+      return res.status(200).json({
+        success: true,
+        message: 'Close proposed. Waiting for the other party to confirm.',
+        data: dealRoom,
+      });
+    }
+
+    // A proposal exists from the OTHER participant - this call is a confirmation.
+    // The amount must match what was proposed, so both sides are agreeing to the
+    // same number rather than one side silently overriding the other's figure.
+    if (existingProposal.amount !== amount) {
+      return res.status(400).json({
+        success: false,
+        message: `The proposed amount was $${existingProposal.amount.toLocaleString()}. Confirm with that exact amount, or propose a new one.`,
+      });
+    }
+
+    // Fee percentage is never taken from the client - always the rate already
+    // stored on this deal room (platform default, admin-adjustable only via
+    // a separate admin-only action, never by a participant closing a deal).
+    const feePercentage = dealRoom.feePercentage;
+    const feeAmount = (amount * feePercentage) / 100;
+
     dealRoom.status = 'closed';
-    dealRoom.amount = finalAmount;
-    dealRoom.feePercentage = feePercentage;
+    dealRoom.amount = amount;
     dealRoom.feeAmount = feeAmount;
     dealRoom.closedAt = new Date();
     dealRoom.closedBy = userId;
+    dealRoom.closeProposal = undefined;
 
-    // Add to activity log
     dealRoom.activityLog.push({
       action: 'Deal Closed',
-      description: `Deal closed with investment of $${finalAmount.toLocaleString()}. Success fee: $${feeAmount.toLocaleString()}`,
+      description: `Deal closed with investment of $${amount.toLocaleString()}. Success fee: $${feeAmount.toLocaleString()}`,
       timestamp: new Date(),
       userId,
     });
@@ -538,11 +671,11 @@ export const closeDeal = async (req, res) => {
         type: 'deal_closed',
         title: '🎉 Deal Closed!',
         message: isFounder 
-          ? `Your deal with ${dealRoom.matchId.investorId.name} has closed for $${finalAmount.toLocaleString()}! Success fee: $${feeAmount.toLocaleString()}`
-          : `Your deal with ${dealRoom.matchId.founderId.name} has closed for $${finalAmount.toLocaleString()}!`,
+          ? `Your deal with ${dealRoom.matchId.investorId.name} has closed for $${amount.toLocaleString()}! Success fee: $${feeAmount.toLocaleString()}`
+          : `Your deal with ${dealRoom.matchId.founderId.name} has closed for $${amount.toLocaleString()}!`,
         data: {
           dealRoomId: dealRoom._id,
-          amount: finalAmount,
+          amount: amount,
           feeAmount: feeAmount,
         },
       });
@@ -553,7 +686,7 @@ export const closeDeal = async (req, res) => {
       message: 'Deal closed successfully',
       data: {
         dealRoom,
-        amount: finalAmount,
+        amount: amount,
         feeAmount: feeAmount,
         feePercentage: feePercentage,
       },
@@ -576,18 +709,18 @@ export const getDealRoomStats = async (req, res) => {
   try {
     const userId = req.user._id;
 
-    const [totalActive, totalDueDiligence, totalNegotiation, totalClosed] = await Promise.all([
+    const [totalInterested, totalNdaSigned, totalDueDiligence, totalClosed] = await Promise.all([
       DealRoom.countDocuments({
         'participants.userId': userId,
-        status: 'active'
+        status: 'interested'
+      }),
+      DealRoom.countDocuments({
+        'participants.userId': userId,
+        status: 'nda_signed'
       }),
       DealRoom.countDocuments({
         'participants.userId': userId,
         status: 'due_diligence'
-      }),
-      DealRoom.countDocuments({
-        'participants.userId': userId,
-        status: 'negotiation'
       }),
       DealRoom.countDocuments({
         'participants.userId': userId,
@@ -616,11 +749,11 @@ export const getDealRoomStats = async (req, res) => {
     res.status(200).json({
       success: true,
       data: {
-        active: totalActive,
+        interested: totalInterested,
+        ndaSigned: totalNdaSigned,
         dueDiligence: totalDueDiligence,
-        negotiation: totalNegotiation,
         closed: totalClosed,
-        total: totalActive + totalDueDiligence + totalNegotiation + totalClosed,
+        total: totalInterested + totalNdaSigned + totalDueDiligence + totalClosed,
         totalAmount: totals[0]?.totalAmount || 0,
         totalFees: totals[0]?.totalFees || 0,
         totalDeals: totals[0]?.count || 0,
@@ -641,6 +774,7 @@ export const getDealRoomStats = async (req, res) => {
 
 export default {
   getMyDealRooms,
+  updateChecklistItem,
   getDealRoomById,
   patchDealRoomStatus,
   getDealRoomDocuments,

@@ -169,7 +169,7 @@ export const getInvestorStats = async (req, res) => {
       Match.countDocuments({ investorId: userId, status: 'active' }),
       DealRoom.countDocuments({
         'participants.userId': userId,
-        status: { $in: ['active', 'due_diligence'] }
+        status: { $in: ['interested', 'nda_signed', 'due_diligence'] }
       }),
       DealRoom.countDocuments({
         'participants.userId': userId,
@@ -362,7 +362,7 @@ export const getInvestorDashboard = async (req, res) => {
       Match.countDocuments({ investorId: userId, status: 'active' }),
       DealRoom.countDocuments({
         'participants.userId': userId,
-        status: { $in: ['active', 'due_diligence'] }
+        status: { $in: ['interested', 'nda_signed', 'due_diligence'] }
       }),
       DealRoom.countDocuments({
         'participants.userId': userId,
@@ -376,7 +376,7 @@ export const getInvestorDashboard = async (req, res) => {
     // Get active deals with details
     const activeDealsData = await DealRoom.find({
       'participants.userId': userId,
-      status: { $in: ['active', 'due_diligence'] }
+      status: { $in: ['interested', 'nda_signed', 'due_diligence'] }
     })
     .populate({
       path: 'matchId',

@@ -26,6 +26,7 @@ const notificationSchema = new mongoose.Schema({
       'password_changed',
       'new_message',
       'document_uploaded',
+      'deal_close_proposed',
       'deal_closed',
     ],
     required: true,

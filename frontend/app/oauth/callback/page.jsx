@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useUser } from "@/components/providers/UserProvider";
+import { setToken } from "@/lib/tokenStorage";
 
 export default function OAuthCallbackPage() {
   const router = useRouter();
@@ -30,7 +31,7 @@ export default function OAuthCallbackPage() {
         setMessage("Setting up your session...");
         
         // Store token immediately
-        localStorage.setItem("token", token);
+        setToken(token);
         
         // Fetch fresh user data directly from the provider
         const user = await refreshUser();

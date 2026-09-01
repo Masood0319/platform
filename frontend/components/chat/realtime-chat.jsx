@@ -21,7 +21,9 @@ import {
   sendMessage,
   markMessagesAsRead,
   getOrCreateConversation,
+  shareEmail,
 } from "@/lib/services/messageService";
+import { showToast } from "@/lib/toast";
 import { useUser } from "@/components/providers/UserProvider";
 
 // Small set of quick-access emoji — keeps the picker lightweight, no extra deps
@@ -61,6 +63,8 @@ export function RealtimeChat({ emit }) {
   const [conversations, setConversations] = useState([]);
   const [activeConversationId, setActiveConversationId] = useState(null);
   const [messages, setMessages] = useState([]);
+  const [sharedEmailsByConv, setSharedEmailsByConv] = useState({});
+  const [sharingEmail, setSharingEmail] = useState(false);
   const [messageText, setMessageText] = useState("");
   const [isTyping, setIsTyping] = useState(false);
   const [otherIsTyping, setOtherIsTyping] = useState(false);
@@ -264,6 +268,22 @@ export function RealtimeChat({ emit }) {
     return conv.participants.find((p) => p._id !== user?._id && p.id !== user?._id) || null;
   }, [conversations, activeConversationId, user]);
 
+  const sharedEmails = activeConversationId ? sharedEmailsByConv[activeConversationId] : null;
+
+  const handleShareEmail = async () => {
+    if (!activeConversationId || sharingEmail) return;
+    setSharingEmail(true);
+    try {
+      const result = await shareEmail(activeConversationId);
+      setSharedEmailsByConv((prev) => ({ ...prev, [activeConversationId]: result.participants }));
+      showToast("Emails shared successfully");
+    } catch (error) {
+      showToast(error.message || "Failed to share email");
+    } finally {
+      setSharingEmail(false);
+    }
+  };
+
   const filteredConversations = useMemo(() => {
     const query = searchQuery.trim().toLowerCase();
     if (!query) return conversations;
@@ -443,6 +463,29 @@ export function RealtimeChat({ emit }) {
                 </button>
               </div>
             </div>
+
+            {/* Message cap / Share Email banner */}
+            {activeConversationId && (
+              sharedEmails ? (
+                <div className="flex-none border-b border-emerald-100 bg-emerald-50 px-4 py-2 text-xs text-emerald-800">
+                  Emails shared:{" "}
+                  {sharedEmails.map((p) => `${p.name} <${p.email}>`).join(" · ")}
+                </div>
+              ) : messages.length >= 5 ? (
+                <div className="flex flex-none flex-wrap items-center justify-between gap-2 border-b border-[var(--border)] bg-[var(--surface)] px-4 py-2">
+                  <span className="text-xs text-[var(--text-muted)]">
+                    You've exchanged {messages.length} messages - you can now share emails to continue off-platform.
+                  </span>
+                  <Button size="sm" variant="outline" disabled={sharingEmail} onClick={handleShareEmail}>
+                    {sharingEmail ? "Sharing…" : "Share Email"}
+                  </Button>
+                </div>
+              ) : (
+                <div className="flex-none border-b border-[var(--border)] bg-[var(--surface)] px-4 py-2 text-xs text-[var(--text-muted)]">
+                  {messages.length}/5 messages exchanged - "Share Email" unlocks after 5.
+                </div>
+              )
+            )}
 
             {/* Messages */}
             <div className="relative flex-1 min-h-0">

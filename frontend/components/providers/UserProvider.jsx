@@ -2,6 +2,8 @@
 
 import React, { createContext, useState, useContext, useEffect, useCallback, useRef } from 'react';
 import { get, post } from '../../lib/apiClient';
+import { getToken, setToken, clearToken } from '../../lib/tokenStorage';
+import { logoutUser as centralizedLogout } from '../../lib/auth';
 
 const UserContext = createContext();
 
@@ -17,49 +19,58 @@ export const UserProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const isFetchingRef = useRef(false);
+  const inFlightRequestRef = useRef(null);
 
   // ============================================
   // FETCH USER FUNCTION
   // ============================================
 
   const fetchUser = useCallback(async () => {
-    // Prevent overlapping fetch requests
-    if (isFetchingRef.current) return;
-    
-    try {
-      isFetchingRef.current = true;
-      setLoading(true);
-      setError(null);
-
-      const token = localStorage.getItem('token');
-      if (!token) {
-        setUser(null);
-        setLoading(false);
-        return;
-      }
-
-      const response = await get('/auth/me');
-      
-      if (response?.success && response?.data) {
-        const userData = response.data.user || response.data;
-        setUser(userData);
-        return userData;
-      } else {
-        localStorage.removeItem('token');
-        setUser(null);
-        return null;
-      }
-    } catch (error) {
-      if (error.status === 401) {
-        localStorage.removeItem('token');
-        setUser(null);
-      }
-      setError(error.message);
-    } finally {
-      isFetchingRef.current = false;
-      setLoading(false);
+    // If a fetch is already in flight, share its result instead of
+    // silently returning undefined - callers like the OAuth callback
+    // page depend on getting the REAL outcome, not a stale early-out.
+    if (inFlightRequestRef.current) {
+      return inFlightRequestRef.current;
     }
+
+    const requestPromise = (async () => {
+      try {
+        setLoading(true);
+        setError(null);
+
+        const token = getToken();
+        if (!token) {
+          setUser(null);
+          setLoading(false);
+          return null;
+        }
+
+        const response = await get('/auth/me');
+
+        if (response?.success && response?.data) {
+          const userData = response.data.user || response.data;
+          setUser(userData);
+          return userData;
+        } else {
+          clearToken();
+          setUser(null);
+          return null;
+        }
+      } catch (error) {
+        if (error.status === 401) {
+          clearToken();
+          setUser(null);
+        }
+        setError(error.message);
+        return null;
+      } finally {
+        setLoading(false);
+        inFlightRequestRef.current = null;
+      }
+    })();
+
+    inFlightRequestRef.current = requestPromise;
+    return requestPromise;
   }, []);
 
   // ============================================
@@ -72,14 +83,14 @@ export const UserProvider = ({ children }) => {
       setError(null);
 
       const response = await post('/auth/login', { email, password });
-      
+
       if (response?.success && response?.token) {
         const token = response.token;
         const userData = response.data?.user || response.data;
-        
-        localStorage.setItem('token', token);
+
+        setToken(token);
         setUser(userData);
-        
+
         return { success: true, user: userData };
       } else {
         throw new Error(response?.message || 'Login failed');
@@ -94,18 +105,22 @@ export const UserProvider = ({ children }) => {
 
   // ============================================
   // LOGOUT FUNCTION
+  // ------------------------------------------------------------
+  // Delegates to the single centralized implementation in
+  // lib/auth.js (fixes the old GET /auth/logout 404 bug and
+  // avoids having two divergent copies of this logic). Redirect
+  // and toast are disabled here because some callers (e.g. the
+  // landing page's "switch account" flow) want to stay in place;
+  // callers that want the full experience should call
+  // logoutUser() from lib/auth.js directly instead.
   // ============================================
 
   const logout = useCallback(async () => {
-    try {
-      await get('/auth/logout');
-    } catch (_) {
-      // Ignore network errors on logout
-    }
-
-    localStorage.removeItem('token');
-    sessionStorage.removeItem('token');
-    setUser(null);
+    await centralizedLogout({
+      redirect: false,
+      toast: false,
+      onLogout: () => setUser(null),
+    });
   }, []);
 
   const clearUserState = useCallback(() => {
@@ -129,7 +144,8 @@ export const UserProvider = ({ children }) => {
     // 1. Initial fetch on mount
     fetchUser();
 
-    // 2. Listen for cross-tab token changes
+    // 2. Listen for cross-tab token changes (native "storage" event
+    //    only fires in OTHER tabs)
     const handleStorageChange = (e) => {
       if (e.key === 'token') {
         if (e.newValue) {

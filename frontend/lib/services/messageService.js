@@ -67,3 +67,12 @@ export async function getUnreadCount() {
     return 0;
   }
 }
+
+export async function shareEmail(conversationId) {
+  // Backend enforces the 5-message minimum itself and returns a 400
+  // with a clear message if not yet reached - let the caller handle that.
+  const response = await apiRequest(`messages/${conversationId}/share-email`, {
+    method: 'POST',
+  });
+  return response.data;
+}

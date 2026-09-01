@@ -15,9 +15,11 @@ export function PublicNavbar() {
           {BRAND_NAME}
         </Link>
         <nav className="hidden items-center gap-6 text-sm text-[var(--text-muted)] md:flex">
-          <a href="#how">How it works</a>
-          <a href="#featured">Featured</a>
-          <a href="#stats">Stats</a>
+          <Link href="/how-it-works" className="hover:text-[var(--text-main)]">How it works</Link>
+          <Link href="/about" className="hover:text-[var(--text-main)]">About</Link>
+          <Link href="/pricing" className="hover:text-[var(--text-main)]">Pricing</Link>
+          <Link href="/blog" className="hover:text-[var(--text-main)]">Blog</Link>
+          <Link href="/contact" className="hover:text-[var(--text-main)]">Contact</Link>
         </nav>
         <div className="flex items-center gap-2">
           <details className="group relative">

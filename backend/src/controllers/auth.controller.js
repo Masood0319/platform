@@ -52,9 +52,13 @@ const normalizeEmail = (email) => String(email || "").trim().toLowerCase();
  * Find a user by email case-insensitively (schema stores lowercase,
  * but this is belt-and-braces).
  */
-async function findUserByEmail(email) {
+function findUserByEmail(email) {
   const normalized = normalizeEmail(email);
-  if (!normalized) return null;
+  // Mongoose Queries are thenable but not Promises - returning a real
+  // Promise.resolve(null) here (instead of `return null` from an async
+  // function) keeps this safely awaitable while a non-async function
+  // preserves .select()/.populate() chainability on the real query below.
+  if (!normalized) return Promise.resolve(null);
   const escaped = normalized.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   return User.findOne({
     email: { $regex: `^${escaped}$`, $options: "i" },
@@ -446,4 +450,3 @@ export const resetPassword = async (req, res) => {
     });
   }
 };
-

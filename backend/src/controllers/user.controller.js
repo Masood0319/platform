@@ -61,6 +61,7 @@ export const updateProfile = async (req, res) => {
       "profilePicture",
       "investorProfile",
       "founderProfile",
+      "notificationPreferences",
     ];
 
     const filteredData = {};

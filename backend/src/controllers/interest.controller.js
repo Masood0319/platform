@@ -539,7 +539,7 @@ const checkAndCreateMutualMatch = async (interest) => {
         { userId: founderId, role: 'founder' },
         { userId: investorId, role: 'investor' },
       ],
-      status: 'active',
+      status: 'interested',
       activityLog: [
         {
           action: 'Match Created',

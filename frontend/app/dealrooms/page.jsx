@@ -10,10 +10,8 @@ import { Handshake } from "lucide-react";
 function pickBestDealRoom(dealRooms) {
   if (!Array.isArray(dealRooms) || dealRooms.length === 0) return null;
 
-  // Prefer an active-ish room if status is present.
-  // Backend status values live in dealRoom.model/controller; we support common ones.
+  // Prefer the most-progressed room if status is present.
   const priority = [
-    "negotiation",
     "due_diligence",
     "nda_signed",
     "interested",
@@ -62,7 +60,7 @@ export default function DealRoomsPage() {
   const hasAny = useMemo(() => dealRooms?.length > 0, [dealRooms]);
 
   return (
-    <AppShell title="Deal Rooms" subtitle="Your negotiation workspaces.">
+    <AppShell title="Deal Rooms" subtitle="Your active deal workspaces.">
       {loading ? (
         <div className="rounded-xl border border-[var(--border)] bg-white p-5 text-sm text-[var(--text-muted)]">
           Loading your deal rooms...
@@ -78,11 +76,10 @@ export default function DealRoomsPage() {
           </div>
           <p className="mt-3 text-sm font-medium text-[var(--text-main)]">No deal rooms yet</p>
           <p className="mt-1 text-sm text-[var(--text-muted)]">
-            When a match progresses to a negotiation, a deal room will appear here.
+            When you have a mutual match with someone, a deal room will appear here.
           </p>
         </Card>
       )}
     </AppShell>
   );
 }
-

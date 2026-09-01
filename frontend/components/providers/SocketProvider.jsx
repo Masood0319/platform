@@ -4,6 +4,8 @@
 
 import React, { createContext, useContext, useEffect, useState, useRef } from 'react';
 import io from 'socket.io-client';
+import { useUser } from './UserProvider';
+import { getToken } from '../../lib/tokenStorage';
 
 const SocketContext = createContext();
 
@@ -20,11 +22,15 @@ export const SocketProvider = ({ children }) => {
   const [isConnected, setIsConnected] = useState(false);
   const socketRef = useRef(null);
 
-  // Watch for token changes and reconnect socket accordingly
+  // SocketProvider now lives INSIDE UserProvider (see app/layout.jsx),
+  // so it can react directly to real auth state instead of reading
+  // localStorage once on mount. This connects/disconnects the socket
+  // whenever isAuthenticated actually changes - including logins and
+  // logouts that happen in the same tab without a full page reload.
+  const { isAuthenticated } = useUser();
+
   useEffect(() => {
-    const token = localStorage.getItem('token');
-    
-    // Disconnect existing socket if token changed/removed
+    // Always tear down any existing connection first
     if (socketRef.current) {
       socketRef.current.disconnect();
       socketRef.current = null;
@@ -32,7 +38,9 @@ export const SocketProvider = ({ children }) => {
       setIsConnected(false);
     }
 
-    // Only connect if we have a token
+    if (!isAuthenticated) return;
+
+    const token = getToken();
     if (!token) return;
 
     const socketInstance = io(process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000', {
@@ -41,17 +49,14 @@ export const SocketProvider = ({ children }) => {
     });
 
     socketInstance.on('connect', () => {
-      console.log('🔌 Socket connected');
       setIsConnected(true);
     });
 
     socketInstance.on('disconnect', () => {
-      console.log('🔌 Socket disconnected');
       setIsConnected(false);
     });
 
-    socketInstance.on('connect_error', (err) => {
-      console.error('🔌 Socket connection error:', err.message);
+    socketInstance.on('connect_error', () => {
       setIsConnected(false);
     });
 
@@ -59,30 +64,9 @@ export const SocketProvider = ({ children }) => {
     setSocket(socketInstance);
 
     return () => {
-      if (socketInstance) {
-        socketInstance.disconnect();
-      }
+      socketInstance.disconnect();
     };
-  }, []); // We'll use the token check on mount only - no deps change needed
-
-  // Listen for storage events (triggered by login/logout in other tabs)
-  useEffect(() => {
-    const handleStorageChange = (e) => {
-      if (e.key === 'token') {
-        // Token changed in another tab - force reconnect by remounting
-        // This is handled by the main effect when token changes
-        if (!e.newValue && socketRef.current) {
-          socketRef.current.disconnect();
-          socketRef.current = null;
-          setSocket(null);
-          setIsConnected(false);
-        }
-      }
-    };
-
-    window.addEventListener('storage', handleStorageChange);
-    return () => window.removeEventListener('storage', handleStorageChange);
-  }, []);
+  }, [isAuthenticated]);
 
   return (
     <SocketContext.Provider value={{ socket, isConnected }}>

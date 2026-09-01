@@ -50,7 +50,7 @@ export const getDashboard = async (req, res) => {
       }),
       DealRoom.countDocuments({
         'participants.userId': userId,
-        status: { $in: ['active', 'due_diligence'] }
+        status: { $in: ['interested', 'nda_signed', 'due_diligence'] }
       }),
       DealRoom.countDocuments({
         'participants.userId': userId,
@@ -70,7 +70,7 @@ export const getDashboard = async (req, res) => {
     // Get active deals with details
     const activeDealsData = await DealRoom.find({
       'participants.userId': userId,
-      status: { $in: ['active', 'due_diligence'] }
+      status: { $in: ['interested', 'nda_signed', 'due_diligence'] }
     })
     .populate({
       path: 'matchId',
@@ -274,7 +274,7 @@ export const getDealStats = async (req, res) => {
       }),
       DealRoom.countDocuments({
         'participants.userId': userId,
-        status: { $in: ['active', 'due_diligence'] }
+        status: { $in: ['interested', 'nda_signed', 'due_diligence'] }
       }),
     ]);
 
@@ -566,10 +566,11 @@ export const getStartupInsights = async (req, res) => {
  */
 const getDealProgress = (status) => {
   const progressMap = {
-    'active': 25,
-    'due_diligence': 50,
-    'negotiation': 75,
+    'interested': 20,
+    'nda_signed': 45,
+    'due_diligence': 70,
     'closed': 100,
+    'declined': 0,
   };
   return progressMap[status] || 0;
 };
