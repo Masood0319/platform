@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { protect, restrictTo } from "../middleware/auth.middleware.js";
+import { protect } from "../middleware/auth.middleware.js";
 import {
   submitVerification,
   getVerificationStatus,
@@ -8,35 +8,26 @@ import {
   cancelVerification,
   getVerificationDocument,
 } from "../controllers/verification.controller.js";
+import { uploadMultipleDocs, handleUploadError } from "../middleware/upload.middleware.js";
 
 const router = Router();
 
-// ============================================
-// ALL ROUTES REQUIRE AUTHENTICATION
-// ============================================
-
 router.use(protect);
 
-// ============================================
-// VERIFICATION SUBMISSION (Both roles can submit)
-// ============================================
+// Submit verification (with file upload)
+router.post("/", uploadMultipleDocs, handleUploadError, submitVerification);
 
-// POST /api/verification - Submit verification request
-router.post("/", submitVerification);
-
-// GET /api/verification/status - Get my verification status
+// Status & list
 router.get("/status", getVerificationStatus);
-
-// GET /api/verification/my - Get all my verification requests
 router.get("/my", getMyVerifications);
 
-// GET /api/verification/:id/document - Get verification document
+// Document view
 router.get("/:id/document", getVerificationDocument);
 
-// PUT /api/verification/:id/resubmit - Resubmit verification
-router.put("/:id/resubmit", resubmitVerification);
+// Resubmit (with new files)
+router.put("/:id/resubmit", uploadMultipleDocs, handleUploadError, resubmitVerification);
 
-// DELETE /api/verification/:id/cancel - Cancel verification request
+// Cancel pending
 router.delete("/:id/cancel", cancelVerification);
 
 export default router;

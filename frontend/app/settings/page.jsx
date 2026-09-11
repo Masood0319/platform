@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, Suspense } from "react";
+import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { AppShell } from "@/components/layout/app-shell";
 import { AuthGuard } from "@/components/auth/AuthGuard";
@@ -16,11 +17,13 @@ import {
   updateNotificationPreferences,
   changePassword,
   deleteAccount,
-} from "@/lib/services/settingsService";
+} from "@/lib/services/settingService";
+import { BadgeCheck } from "lucide-react";
 
 const TABS = [
   { key: "notifications", label: "Notifications" },
   { key: "password", label: "Password" },
+  { key: "verification", label: "Verification" },
   { key: "privacy", label: "Privacy" },
   { key: "danger", label: "Delete account" },
 ];
@@ -88,7 +91,7 @@ function NotificationsTab() {
       await updateNotificationPreferences(next);
     } catch (error) {
       showToast(error.message || "Failed to save preference");
-      setPrefs(prefs); // revert on failure
+      setPrefs(prefs);
     } finally {
       setSaving(false);
     }
@@ -169,6 +172,35 @@ function PasswordTab() {
           {submitting ? "Updating…" : "Update password"}
         </Button>
       </form>
+    </Card>
+  );
+}
+
+function VerificationTab() {
+  const { user } = useUser();
+  const isVerified = user?.verified || user?.verificationBadge;
+
+  return (
+    <Card>
+      <CardTitle className="flex items-center gap-2">
+        <BadgeCheck size={18} className={isVerified ? "text-emerald-600" : "text-[var(--text-muted)]"} />
+        Account Verification
+      </CardTitle>
+      <CardDescription className="mb-4">
+        {isVerified
+          ? "Your account is verified. You have a verified badge on your profile."
+          : "Upload your registration certificate or accreditation documents to get a verified badge. Verified accounts get higher visibility and trust."}
+      </CardDescription>
+
+      {isVerified ? (
+        <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
+          ✓ Verified
+        </div>
+      ) : (
+        <Link href="/settings/verification">
+          <Button>Go to Verification</Button>
+        </Link>
+      )}
     </Card>
   );
 }
@@ -268,6 +300,7 @@ function SettingsContent() {
 
       {activeTab === "notifications" && <NotificationsTab />}
       {activeTab === "password" && <PasswordTab />}
+      {activeTab === "verification" && <VerificationTab />}
       {activeTab === "privacy" && <PrivacyTab />}
       {activeTab === "danger" && <DangerTab />}
     </AppShell>
